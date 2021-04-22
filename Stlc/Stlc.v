@@ -111,7 +111,7 @@ Inductive step : exp -> exp -> Prop :=    (* defn step *)
 (** infrastructure *)
 Hint Constructors typing step lc_exp : core.
 
-Inductive step_count : exp -> exp -> nat -> Prop :=
+(* Inductive step_count : exp -> exp -> nat -> Prop :=
   | sc_base : forall (e:exp),
     step_count e e 0
   | sc_ind : forall (e1 e2 e3:exp) (n:nat),
@@ -127,7 +127,7 @@ Inductive bounded_reduction : exp -> nat -> Prop :=
 Inductive strong_norm : exp -> Prop :=
   | sn_bound : forall (e:exp) (v:nat),
     bounded_reduction e v ->
-    strong_norm e.
+    strong_norm e. *)
 
 (* Theorem sn_arrow : forall (G:ctx) (e:exp) (U V:typ),
   typing G e (typ_arrow U V) ->
