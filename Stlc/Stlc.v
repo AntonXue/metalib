@@ -162,6 +162,7 @@ Qed.
   | norm_f : forall (x : var), norm (var_f x) 
 Girard defines norm as not containing any (abs (app e1) e2) but the above definition is simpler. Decide later what to use*)
 
+(* have we guaranteed that there is only one possible step? *)
 Inductive step_count : exp -> nat -> Prop := (*count!*)
   | count_b : forall (e:exp), norm e -> step_count e 0
   | count_step : forall (e e2:exp) (n:nat), step e e2 -> step_count e2 (n - 1) -> step_count e n.
@@ -190,27 +191,18 @@ Fixpoint reducible (T : typ) (e : exp) : Prop :=
   | typ_arrow T1 T2 => (forall (e2: exp) , reducible T1 e2 -> reducible T2  (app e e2))
 end.
 
+ 
 
-
-Inductive reducible : typ -> exp -> Prop :=
+(* Inductive reduc : typ -> exp -> Prop :=
   | red_arrow : forall (G:ctx) (e:exp) (U V:typ),
     typing G e (typ_arrow U V) ->
     (forall (u:exp), 
-      strong_norm u -> reducible V (app e u)) ->
-    reducible (typ_arrow U V) e
+      strong_norm u -> reduc V (app e u)) ->
+      reduc (typ_arrow U V) e
   | red_atom : forall (G:ctx) (e:exp),
     typing G e typ_base ->
     strong_norm e ->
-    reducible typ_base e.
-
-Theorem all_types_inhabited : forall (T:typ),
-  exists (G:ctx) (e:exp),
-  typing G e T.
-Proof.
-  intros.
-  exists [(fresh nil, T)].
-  exists (var_f (fresh nil)).
-  auto. Qed.
+    reduc typ_base e. *)
 
 Theorem sn_red: forall (G:ctx) (T:typ) (e:exp),
   typing G e T ->
