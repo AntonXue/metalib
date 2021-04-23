@@ -111,7 +111,7 @@ Inductive step : exp -> exp -> Prop :=    (* defn step *)
 (** infrastructure *)
 Hint Constructors typing step lc_exp : core.
 
-Inductive step_count : exp -> exp -> nat -> Prop :=
+(* Inductive step_count : exp -> exp -> nat -> Prop :=
   | sc_base : forall (e:exp),
     step_count e e 0
   | sc_ind : forall (e1 e2 e3:exp) (n:nat),
@@ -143,7 +143,7 @@ Proof.
     apply Hu.
 
   } *)
-  
+  *)
   
 Definition norm (e : exp) : Prop :=
   (~ exists e2, step e e2).
@@ -153,7 +153,6 @@ Proof.
 unfold norm. unfold not. intros. destruct H.
   inversion H. inversion H4.
 Qed.
-
 
 (*Inductive norm: exp -> Prop :=
   | norm_b : forall (n : nat), norm (var_b n)
@@ -190,7 +189,47 @@ Fixpoint reducible (T : typ) (e : exp) : Prop :=
   | typ_arrow T1 T2 => (forall (e2: exp) , reducible T1 e2 -> reducible T2  (app e e2))
 end.
 
+Definition relation (X : Type) := X -> X -> Prop.
 
+Inductive multi {X : Type} (R : relation X) : relation X :=
+  | multi_refl : forall (x : X), multi R x x
+  | multi_step : forall (x y z : X),
+                    R x y ->
+                    multi R y z ->
+                    multi R x z.
+
+(** (In the [Rel] chapter of _Logical Foundations_ and
+    the Coq standard library, this relation is called
+    [clos_refl_trans_1n].  We give it a shorter name here for the sake
+    of readability.) *)
+
+(** The effect of this definition is that [multi R] relates two
+    elements [x] and [y] if
+
+       - [x = y], or
+       - [R x y], or
+       - there is some nonempty sequence [z1], [z2], ..., [zn] such that
+
+           R x z1
+           R z1 z2
+           ...
+           R zn y.
+
+    Thus, if [R] describes a single-step of computation, then [z1] ... [zn]
+    is the sequence of intermediate steps of computation between [x] and
+    [y]. *)
+
+(** We write [-->*] for the [multi step] relation on terms. *)
+
+Notation " t '-->*' t' " := (multi step t t') (at level 40).
+
+Definition confluence :(R : relation exp) : Prop := forall (e1 m n f : exp),
+multi_step R e1 m -> multi_step R e1 n -> multi_step R m f -> multi_step n f.
+
+Theorem church_rosser : forall (e1 m n f : exp),
+e1 -->* m -> e1 -->* n -> m -->* f -> n -->* f.
+Proof.
+intros.
 
 Inductive reducible : typ -> exp -> Prop :=
   | red_arrow : forall (G:ctx) (e:exp) (U V:typ),
