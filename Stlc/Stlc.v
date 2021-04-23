@@ -127,7 +127,7 @@ Inductive bounded_reduction : exp -> nat -> Prop :=
 Inductive strong_norm : exp -> Prop :=
   | sn_bound : forall (e:exp) (v:nat),
     bounded_reduction e v ->
-    strong_norm e. *)
+    strong_norm e.
 
 (* Theorem sn_arrow : forall (G:ctx) (e:exp) (U V:typ),
   typing G e (typ_arrow U V) ->
@@ -161,7 +161,6 @@ Qed.
   | norm_f : forall (x : var), norm (var_f x) 
 Girard defines norm as not containing any (abs (app e1) e2) but the above definition is simpler. Decide later what to use*)
 
-(* have we guaranteed that there is only one possible step? *)
 Inductive step_count : exp -> nat -> Prop := (*count!*)
   | count_b : forall (e:exp), norm e -> step_count e 0
   | count_step : forall (e e2:exp) (n:nat), step e e2 -> step_count e2 (n - 1) -> step_count e n.
@@ -195,8 +194,8 @@ Definition relation (X : Type) := X -> X -> Prop.
 Inductive multi {X : Type} (R : relation X) : relation X :=
   | multi_refl : forall (x : X), multi R x x
   | multi_step : forall (x y z : X),
-                    R x y ->
-                    multi R y z ->
+                    R y z ->
+                    multi R x y ->
                     multi R x z.
 
 (** (In the [Rel] chapter of _Logical Foundations_ and
@@ -223,25 +222,144 @@ Inductive multi {X : Type} (R : relation X) : relation X :=
 (** We write [-->*] for the [multi step] relation on terms. *)
 
 Notation " t '-->*' t' " := (multi step t t') (at level 40).
+Theorem multi_R : forall (X : Type) (R : relation X) (x y : X),
+    R x y -> (multi R) x y.
+Proof.
+  intros X R x y H.
+  apply multi_step with x.
+ - auto.
+  - apply multi_refl.
+Qed.
 
-Definition confluence :(R : relation exp) : Prop := forall (e1 m n f : exp),
-multi_step R e1 m -> multi_step R e1 n -> multi_step R m f -> multi_step n f.
+(** Third, [multi R] is _transitive_. *)
 
-Theorem church_rosser : forall (e1 m n f : exp),
-e1 -->* m -> e1 -->* n -> m -->* f -> n -->* f.
+Theorem multi_trans :
+  forall (X : Type) (R : relation X) (x y z : X),
+      multi R x y  ->
+      multi R y z ->
+      multi R x z.
+Proof.
+  intros X R x y z G H.
+  induction H.
+    - (* multi_refl *) assumption.
+    - (* multi_step *)
+      apply multi_step with y. assumption.
+      apply IHmulti. assumption.
+Qed.
+
+Definition confluence (R : relation exp) : Prop := forall (e1 m n : exp),
+multi R e1 m -> multi R e1 n -> (exists f, multi R m f /\ multi R n f).
+
+Definition semi_confluence (R : relation exp) : Prop := forall (e1 m n : exp),
+R e1 m -> multi R e1 n -> (exists f, multi R m f /\ multi R n f).
+
+
+Definition map (X : Type) := X -> X.
+
+Definition monotonic (R : relation exp) (m : map exp) : Prop := forall (a b : exp), multi R a b -> multi R (m a) (m b). 
+
+
+
+Definition Z_prop (R : relation exp) : Prop :=  exists (m : map exp), forall (a b : exp), R a b -> multi R b (m a) /\ multi R (m a) (m b).
+
+Definition Z_prop_m (R : relation exp) (m : map exp) := forall (a b : exp), R a b -> multi R b (m a) /\ multi R (m a) (m b).
+
+Lemma Z_prop_to_m : forall (R : relation exp),  Z_prop R -> exists m, Z_prop_m R m.
 Proof.
 intros.
+unfold Z_prop in H. destruct H as [m H0]. exists m. unfold Z_prop_m. auto.
+Qed.
+
+(*Theorem Z_monotonic_helper : forall (R : relation exp) (a b : exp) (m : map exp), Z_prop R -> (R a b -> multi R b (m a) /\ multi R (m a) (m b))
+ -> exists (m : map exp), multi R a b -> multi R (m a) (m b).
+Proof.
+intros. exists m. intros.
+induction H1.
+  - apply multi_refl.
+  - unfold Z_prop in H. assert (H2 :  exists m : map exp, R x y -> multi R y (m x) /\ multi R (m x) (m y)).
+    {
+apply H with (a := x) (b := y).
+}
+  apply H2 in H0. destruct H0.
+  eapply multi_trans. 
+  -- apply H3.
+ apply H in  
+*)
+Theorem Z_monotonic : forall (R : relation exp), Z_prop R -> exists (m : map exp), monotonic R m. 
+Proof.
+intros. unfold Z_prop in H. destruct H as [m H]. eexists. unfold monotonic. 
+intros.
+induction H0.
+  - apply multi_refl.
+  - assert (H2 : R y z -> multi R z (m y) /\ multi R (m y) (m z)).
+    {
+apply H with (a := y) (b := z).
+}
+  apply H2 in H0. destruct H0.
+  eapply multi_trans. 
+  -- apply IHmulti.
+  -- apply H3.
+Qed.
+Theorem Z_monotonic_m : forall (R : relation exp) (m : map exp), Z_prop_m R m -> monotonic R m. 
+Proof.
+intros. unfold Z_prop_m in H. unfold monotonic. 
+intros.
+induction H0.
+  - apply multi_refl.
+  - assert (H2 : R y z -> multi R z (m y) /\ multi R (m y) (m z)).
+    {
+apply H with (a := y) (b := z).
+}
+  apply H2 in H0. destruct H0.
+  eapply multi_trans. 
+  -- apply IHmulti.
+  -- apply H3.
+Qed.
+
+Theorem semi_con_Z_prop : forall (R : relation exp), Z_prop R -> semi_confluence R.
+Proof.
+intros. apply Z_prop_to_m in H. destruct H as [map H].
+assert (Z: Z_prop_m R map). auto.
+apply Z_monotonic_m in Z.
+unfold Z_prop_m in H. unfold monotonic in Z.
+ unfold semi_confluence. intros.
+induction H1.
+  - exists m. split; auto. constructor. apply multi_R. assumption.
+  -  apply Z in H2. assert (M: multi R m (map x)).
+{
+  apply H in H0. destruct H0. auto.
+}
+apply H in H1. destruct H1.
+assert (N : multi R m (map y)).
+{
+eapply multi_trans. eauto. eauto.
+}
+exists (map y). split. auto. auto.
+Qed.
+
+Theorem church_rosser : confluence step.
+Proof.
+unfold confluence.
 
 Inductive reducible : typ -> exp -> Prop :=
   | red_arrow : forall (G:ctx) (e:exp) (U V:typ),
     typing G e (typ_arrow U V) ->
     (forall (u:exp), 
-      strong_norm u -> reduc V (app e u)) ->
-      reduc (typ_arrow U V) e
+      strong_norm u -> reducible V (app e u)) ->
+    reducible (typ_arrow U V) e
   | red_atom : forall (G:ctx) (e:exp),
     typing G e typ_base ->
     strong_norm e ->
-    reduc typ_base e. *)
+    reducible typ_base e.
+
+Theorem all_types_inhabited : forall (T:typ),
+  exists (G:ctx) (e:exp),
+  typing G e T.
+Proof.
+  intros.
+  exists [(fresh nil, T)].
+  exists (var_f (fresh nil)).
+  auto. Qed.
 
 Theorem sn_red: forall (G:ctx) (T:typ) (e:exp),
   typing G e T ->
