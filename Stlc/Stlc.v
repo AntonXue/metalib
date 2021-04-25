@@ -105,7 +105,11 @@ Inductive step : exp -> exp -> Prop :=    (* defn step *)
  | step_app : forall (e1 e2 e1':exp),
      lc_exp e2 ->
      step e1 e1' ->
-     step (app e1 e2) (app e1' e2).
+     step (app e1 e2) (app e1' e2)
+ | step_abs : forall (e1 e1':exp),
+     lc_exp e1 ->
+     step e1 e1' ->
+     step (abs e1) (abs e1').
 
 
 (** infrastructure *)
@@ -220,7 +224,7 @@ Inductive multi {X : Type} (R : relation X) : relation X :=
     [y]. *)
 
 (** We write [-->*] for the [multi step] relation on terms. *)
-
+Notation " t '--->' t' " := (step t t') (at level 60).
 Notation " t '-->*' t' " := (multi step t t') (at level 40).
 Theorem multi_R : forall (X : Type) (R : relation X) (x y : X),
     R x y -> (multi R) x y.
@@ -336,6 +340,47 @@ eapply multi_trans. eauto. eauto.
 }
 exists (map y). split. auto. auto.
 Qed.
+(*app with built in beta reduce*)
+Fixpoint app_beta (e1 e2 : exp) : exp :=
+  match e1 with
+  | (abs e) => (open_exp_wrt_exp e e2)
+  | _ => (app e1 e2)
+end.
+
+(*the mapping function that satisfies Z-property*)
+Fixpoint Z_map (e : exp) : exp :=
+match e with
+  | var_b e1 => var_b e1
+  | var_f e1 => var_f e1
+  | abs e1 => abs (Z_map e1)
+  | app e1 e2 => app_beta (Z_map e1) (Z_map e2)
+end.
+
+
+Theorem test_beta_eq : forall (e1 e2 : exp), lc_exp (Z_map e1) ->
+     lc_exp (Z_map e2) -> multi step (app (Z_map e1) (Z_map e2)) (Z_map (app e1 e2)).
+Proof.
+intros. simpl. destruct (Z_map e1).
+  - constructor.
+  - simpl.  constructor.
+  - simpl. apply multi_step with (y :=  app (abs e) (Z_map e2)). constructor; auto. constructor.
+  - simpl. constructor.
+Qed.
+Proof.
+Theorem lc_step : forall (e1 e2 : exp), e1 ---> e2 -> lc_exp e1 -> lc_exp e2.
+intros.
+induction H; simpl.
+- apply lc_abs in H. 
+Qed.
+Theorem multi_abs : forall (e1 e2 : exp), lc_exp e1 -> lc_exp e2 -> e1 -->* e2 -> abs e1 -->* abs e2.
+Proof.
+intros. 
+induction H1. constructor. apply step_abs in H1.
+
+Qed.
+Theorem step_Z_map : forall (e : exp), e -->* (Z_map e).
+Proof. intros. induction e; simpl; try constructor.
+  - apply step_abs.
 
 Theorem church_rosser : confluence step.
 Proof.
