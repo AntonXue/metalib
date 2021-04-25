@@ -115,7 +115,7 @@ Inductive step : exp -> exp -> Prop :=    (* defn step *)
 (** infrastructure *)
 Hint Constructors typing step lc_exp : core.
 
-(* Inductive step_count : exp -> exp -> nat -> Prop :=
+Inductive step_count : exp -> exp -> nat -> Prop :=
   | sc_base : forall (e:exp),
     step_count e e 0
   | sc_ind : forall (e1 e2 e3:exp) (n:nat),
@@ -125,12 +125,12 @@ Hint Constructors typing step lc_exp : core.
 
 Inductive bounded_reduction : exp -> nat -> Prop :=
   | bound : forall (e1:exp) (v:nat),
-    (forall (e2:exp) (n:nat), step_count e1 e2 n -> n < v) ->
+    (forall (e2:exp) (n:nat), step_count e1 e2 n -> n <= v) ->
     bounded_reduction e1 v.
 
 Inductive strong_norm : exp -> Prop :=
-  | sn_bound : forall (e:exp) (v:nat),
-    bounded_reduction e v ->
+  | sn_bound : forall (e:exp),
+    (exists (v:nat), bounded_reduction e v) ->
     strong_norm e.
 
 (* Theorem sn_arrow : forall (G:ctx) (e:exp) (U V:typ),
@@ -147,7 +147,6 @@ Proof.
     apply Hu.
 
   } *)
-  *)
   
 Definition norm (e : exp) : Prop :=
   (~ exists e2, step e e2).
@@ -165,34 +164,53 @@ Qed.
   | norm_f : forall (x : var), norm (var_f x) 
 Girard defines norm as not containing any (abs (app e1) e2) but the above definition is simpler. Decide later what to use*)
 
+(*
 Inductive step_count : exp -> nat -> Prop := (*count!*)
   | count_b : forall (e:exp), norm e -> step_count e 0
-  | count_step : forall (e e2:exp) (n:nat), step e e2 -> step_count e2 (n - 1) -> step_count e n.
+  | count_step : forall (e e2:exp) (n:nat), 
+    step e e2 -> 
+    step_count e2 (n - 1) -> 
+    step_count e n.*)
 
 Lemma norm_b : forall (x:nat), norm (var_b x).
 Proof.
-intros. unfold norm. unfold not. intros. destruct H. inversion H. Qed. 
+intros. unfold norm. unfold not. intros. destruct H. 
+inversion H. Qed. 
 
 Lemma norm_v : forall (x:var), norm (var_f x).
 Proof.
-intros. unfold norm. unfold not. intros. destruct H. inversion H. Qed. 
+intros. unfold norm. unfold not. intros. destruct H. 
+inversion H. Qed. 
 
-Theorem test_step_count : forall (x : var), step_count (app (abs (var_f x)) (var_f x)) 1.
+(* Theorem test_step_count : forall (x : var), 
+  step_count (app (abs (var_f x)) (var_f x)) 1.
 Proof.
 intros. eapply count_step. apply step_beta.
 apply lc_abs. intros.
-  - simpl. unfold open_exp_wrt_exp. unfold open_exp_wrt_exp_rec. auto.
+  - simpl. unfold open_exp_wrt_exp. unfold open_exp_wrt_exp_rec. 
+    auto.
   - auto.
-  - simpl.  unfold open_exp_wrt_exp. unfold open_exp_wrt_exp_rec. apply count_b.  apply norm_v.
-Qed.
-Definition strong_norm  (e : exp) : Prop :=
-exists n, step_count e n.
+  - simpl.  unfold open_exp_wrt_exp. unfold open_exp_wrt_exp_rec. 
+    apply count_b.  apply norm_v.
+Qed. *)
+
+
+(* Definition strong_norm  (e : exp) : Prop :=
+exists n, step_count e n. *)
 Fixpoint reducible (T : typ) (e : exp) : Prop :=
   match T with
   | typ_base => strong_norm e
-  | typ_arrow T1 T2 => (forall (e2: exp) , reducible T1 e2 -> reducible T2  (app e e2))
+  | typ_arrow T1 T2 => (forall (e2: exp), 
+    reducible T1 e2 -> 
+    reducible T2  (app e e2))
 end.
 
+(* Inductive reduc : typ -> exp -> Prop :=
+  | red_arrow : forall (G:ctx) (e:exp) (U V:typ),
+    typing G e (typ_arrow U V) ->
+    (forall (u:exp), 
+      reduc U u -> reduc V (app e u)) ->
+      reduc (typ_arrow U V) e*)
 Definition relation (X : Type) := X -> X -> Prop.
 
 Inductive multi {X : Type} (R : relation X) : relation X :=
@@ -382,10 +400,12 @@ Theorem step_Z_map : forall (e : exp), e -->* (Z_map e).
 Proof. intros. induction e; simpl; try constructor.
   - apply step_abs.
 
+(* 
 Theorem church_rosser : confluence step.
 Proof.
-unfold confluence.
+unfold confluence. *)
 
+(*
 Inductive reducible : typ -> exp -> Prop :=
   | red_arrow : forall (G:ctx) (e:exp) (U V:typ),
     typing G e (typ_arrow U V) ->
@@ -395,25 +415,129 @@ Inductive reducible : typ -> exp -> Prop :=
   | red_atom : forall (G:ctx) (e:exp),
     typing G e typ_base ->
     strong_norm e ->
-    reducible typ_base e.
+    reducible typ_base e.*)
 
-Theorem all_types_inhabited : forall (T:typ),
-  exists (G:ctx) (e:exp),
-  typing G e T.
+
+Theorem all_types_inhabited: forall (G:ctx) (T:typ),
+  exists (v:exp), typing G v T.
+Admitted.
+
+Inductive neutral : exp -> Prop :=
+  | neutral_varf : forall (v:var),
+    neutral (var_f v)
+  | neutral_varb : forall (n:nat),
+    neutral (var_b n)
+  | neutral_app : forall (e1 e2:exp),
+    neutral (app e1 e2).
+
+(* Fixpoint multistep : exp -> exp -> Prop :=
+| ms_base : forall (e:exp),
+  multistep e e
+| ms_ind : forall (e1 e2 e3:exp),
+  step e1 e2 ->
+  multistep e2 e3 ->
+  multistep e1 e3. *)
+
+Inductive multistep : exp -> exp -> Prop :=
+  | ms_count : forall (t1 t2:exp),
+    (exists (n:nat), step_count t1 t2 n) ->
+    multistep t1 t2.
+
+Lemma step_count_sum : forall (n1 n2:nat) (e1 e2 e3:exp),
+  step_count e1 e2 n1 ->
+  step_count e2 e3 n2 ->
+  step_count e1 e3 (n1 + n2).
 Proof.
-  intros.
-  exists [(fresh nil, T)].
-  exists (var_f (fresh nil)).
-  auto. Qed.
+  induction n1 as [|n1' IHn1]; intros.
+  - inversion H; subst. auto.
+  - inversion H; subst.
+    assert (H43: step_count e4 e3 (n1' + n2)).
+    { apply IHn1 with e2; auto. }
+    apply sc_ind with e4; auto.
+Qed.
 
-Theorem sn_red: forall (G:ctx) (T:typ) (e:exp),
-  typing G e T ->
+Lemma plus_n_le : forall (n m k:nat),
+  n + m <= k ->
+  m <= k.
+Proof.
+  intros. induction n; auto.
+  apply IHn. simpl in H.
+  apply le_trans with (S (n + m)); auto.
+Qed. 
+    
+
+Theorem sn_red: forall (G:ctx) (T:typ) (e e':exp),
+  (typing G e T ->
   reducible T e ->
-  strong_norm e.
+  strong_norm e) /\
+  (reducible T e' ->
+  multistep e' e ->
+  reducible T e) /\
+  (neutral e -> 
+  (forall (e2:exp),
+    step e e2 -> reducible T e2) ->
+  reducible T e).
 Proof.
   induction T.
-  - intros e Ht Hr.
-    inversion Hr; subst; auto. 
-  - intros t Htt Hrt.
-    inversion Hrt; subst.
+  - split.
+    intros Ht Hr. inversion Hr; subst; auto.
+    split.
+    + intros Hrb Hms. simpl in Hrb. simpl.
+      inversion Hms; subst.
+      destruct H as [n Hstep].
+      inversion Hrb; subst.
+      destruct H as [v' Hbre].
+      apply sn_bound.
+      exists v'.
+      apply bound. 
+      intros e2 n2 He2.
+      inversion Hbre; subst.
+      assert (He'2:step_count e' e2 (n + n2)).
+      { apply step_count_sum with e; auto. }
+      apply H in He'2.
+      apply plus_n_le with n. auto.
+    + intros Hn Hred.
+      simpl. simpl in Hred.
+      destruct e; inversion Hn; subst; auto.
+      * apply sn_bound. exists 0.
+        apply bound. intros e2 n2 H.
+        induction n2; auto.
+        inversion H.
+        inversion H1.
+      * apply sn_bound. exists 0.
+        apply bound. intros. induction n; auto.
+        inversion H. inversion H1.
+      * induction e1.
+          (* var_b *)
+          apply sn_bound. exists 0. apply bound.
+          intros. induction n0; auto.
+          inversion H. inversion H1. inversion H9.
+          (* var_f *)
+          apply sn_bound. exists 0. apply bound.
+          intros. induction n; auto.
+          inversion H. inversion H1. inversion H9.
+          (* abs *)
+          assert (Hstep: step (app (abs e1) e2) (open_exp_wrt_exp  e1 e2 )).
+          {
+           apply step_beta. apply lc_abs.
+           admit. 
+          }
+Admitted.
+         
+
+
+
+        
+  (*-  
+    simpl in Hrt.
+    apply sn_bound.
+    assert (Hu:exists (u:exp), typing G u T1). 
+    {
+      apply all_types_inhabited.
+    }
+    destruct Hu as [u Hu].
+    apply IHT1 in Hu.*)
+
+
+
     
