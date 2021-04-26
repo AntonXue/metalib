@@ -7,6 +7,7 @@ Inductive typ : Set :=  (*r types *)
  | typ_arrow (T1:typ) (T2:typ) (*r function types *).
 
 Inductive exp : Set :=  (*r expressions *)
+ | var_b (_:nat) (*r variables *)
  | var_f (x:var) (*r variables *)
  | abs (e:exp) (*r abstractions *)
  | app (e1:exp) (e2:exp) (*r applications *).
@@ -21,6 +22,12 @@ Definition ctx : Set := list ( atom * typ ).
 (** opening up abstractions *)
 Fixpoint open_exp_wrt_exp_rec (k:nat) (e_5:exp) (e__6:exp) {struct e__6}: exp :=
   match e__6 with
+  | (var_b nat) => 
+      match lt_eq_lt_dec nat k with
+        | inleft (left _) => var_b nat
+        | inleft (right _) => e_5
+        | inright _ => var_b (nat - 1)
+      end
   | (var_f x) => var_f x
   | (abs e) => abs (open_exp_wrt_exp_rec (S k) e_5 e)
   | (app e1 e2) => app (open_exp_wrt_exp_rec k e_5 e1) (open_exp_wrt_exp_rec k e_5 e2)
@@ -45,6 +52,7 @@ Inductive lc_exp : exp -> Prop :=    (* defn lc_exp *)
 (** free variables *)
 Fixpoint fv_exp (e_5:exp) : vars :=
   match e_5 with
+  | (var_b nat) => {}
   | (var_f x) => {{x}}
   | (abs e) => (fv_exp e)
   | (app e1 e2) => (fv_exp e1) \u (fv_exp e2)
@@ -53,6 +61,7 @@ end.
 (** substitutions *)
 Fixpoint subst_exp (e_5:exp) (x5:var) (e__6:exp) {struct e__6} : exp :=
   match e__6 with
+  | (var_b nat) => var_b nat
   | (var_f x) => (if eq_var x x5 then e_5 else (var_f x))
   | (abs e) => abs (subst_exp e_5 x5 e)
   | (app e1 e2) => app (subst_exp e_5 x5 e1) (subst_exp e_5 x5 e2)
@@ -93,6 +102,8 @@ Inductive step : exp -> exp -> Prop :=    (* defn step *)
      step (app  ( (abs e1) )  e2)  (open_exp_wrt_exp  e1 e2 ) 
  | step_app : forall (e1 e2 e1':exp),
      step e1 e1' -> step (app e1 e2) (app e1' e2)
+ | step_app_2 : forall (e1 e2 e2':exp),
+     step e2 e2' -> step (app e1 e2) (app e1 e2')
  | step_abs : forall (e1 e1':exp),
      step e1 e1' -> step (abs e1) (abs e1').
 
@@ -140,7 +151,7 @@ Definition norm (e : exp) : Prop :=
 Theorem test : forall (x y : var), norm (app (var_f x) (var_f y)).
 Proof.
 unfold norm. unfold not. intros. destruct H.
-  inversion H; subst. inversion H3.
+  inversion H; subst. inversion H3. inversion H3.
 Qed.
 
 (*Inductive norm: exp -> Prop :=
@@ -231,12 +242,23 @@ Proof.
       apply IHmulti. assumption.
 Qed.
 
+
+
 Definition confluence (R : relation exp) : Prop := forall (e1 m n : exp),
 multi R e1 m -> multi R e1 n -> (exists f, multi R m f /\ multi R n f).
 
 Definition semi_confluence (R : relation exp) : Prop := forall (e1 m n : exp),
 R e1 m -> multi R e1 n -> (exists f, multi R m f /\ multi R n f).
 
+Theorem semi_conf_to_conf : forall (R : relation exp), semi_confluence R -> confluence R. 
+Proof.
+intros. unfold semi_confluence in H. unfold confluence. intros. 
+induction H0.
+  - exists n. split. auto. constructor. 
+  - apply IHmulti in H1. destruct H1.  destruct H1. apply H  with (n := x0) in H0.
+    -- destruct H0. destruct H0. exists x1. split; auto. eapply multi_trans. apply H3. auto. 
+    -- auto.    
+Qed.
 
 Definition map (X : Type) := X -> X.
 
@@ -320,35 +342,99 @@ eapply multi_trans. eauto. eauto.
 }
 exists (map y). split. auto. auto.
 Qed.
+Theorem open_first_step :
+  forall (e1 e1' e2 : exp), e1 ---> e1' -> (open_exp_wrt_exp e1 e2) ---> (open_exp_wrt_exp e1' e2). 
+Proof.
+  intros. generalize dependent e2. generalize dependent e1'. induction e1; intros e1' H e2 . 
+  - unfold open_exp_wrt_exp. unfold open_exp_wrt_exp_rec. destruct n; simpl. inversion H. inversion H. 
+  - inversion H. 
+  - inversion H; subst.   unfold open_exp_wrt_exp. unfold open_exp_wrt_exp in IHe1. 
+    simpl. apply step_abs. unfold open_exp_wrt_exp_rec.
+
+Theorem open_second_step :
+  forall (e1 e1' e2 : exp), e2 ---> e1' -> (open_exp_wrt_exp e1 e2) ---> (open_exp_wrt_exp e1 e1'). 
+Proof.
+  Admitted.
 (*app with built in beta reduce*)
 Fixpoint app_beta (e1 e2 : exp) : exp :=
   match e1 with
   | (abs e) => (open_exp_wrt_exp e e2)
   | _ => (app e1 e2)
 end.
+Theorem app_beta_one : forall (e1 e2 e1': exp), e1 ---> e1' -> app_beta e1 e2 ---> app_beta e1' e2. 
+Proof.
+intros. generalize dependent e2. 
+induction e1.
+- inversion H.  
+- inversion H.
+- intros. inversion H; subst. unfold app_beta. apply open_first_step. auto.
+- intros. unfold app_beta. fold app_beta. Admitted.
+
+Theorem app_beta_two : forall (e1 e2 e2': exp), e2 ---> e2' -> app_beta e1 e2 ---> app_beta e1 e2'. 
+Proof.
+intros. induction e2.
+- inversion H.  
+- inversion H.
+- inversion H; subst. unfold app_beta. destruct e1. 
+  -- apply step_app_2. apply step_abs. auto.
+  -- apply step_app_2. apply step_abs. auto.
+  -- apply open_second_step. apply step_abs. auto.
+  -- apply step_app_2. apply step_abs. auto.
+- inversion H; subst. unfold app_beta. destruct e1; try (apply step_app_2; apply step_beta). 
+  apply open_second_step. apply step_beta.
+         unfold app_beta. destruct e1; try (apply step_app_2; apply step_app; auto). 
+  apply  open_second_step. apply step_app. auto.
+    unfold app_beta. destruct e1; try (apply step_app_2; apply step_app_2; auto). 
+   apply  open_second_step. apply step_app_2. auto.
+Qed.
+
+Theorem app_beta_cong : forall (e1 e1' e2 e2' : exp), e1 -->* e1' -> e2 -->* e2' -> app_beta e1 e2 -->* app_beta e1' e2'. 
+Proof.
+  intros e1 e2 e1' e2' G H.
+  induction G. 
+  - induction H. 
+    -- constructor. 
+    -- eapply app_beta_two in H. eapply multi_step.  apply H. auto. 
+  - induction H.
+    -- eapply app_beta_one in H0. eapply multi_step.  apply H0. auto.
+    -- eapply app_beta_one in H0. eapply multi_step.  apply H0. auto.  
+Qed.
 
 (*the mapping function that satisfies Z-property*)
 Fixpoint Z_map (e : exp) : exp :=
 match e with
+  | var_b n => var_b n
   | var_f e1 => var_f e1
   | abs e1 => abs (Z_map e1)
   | app e1 e2 => app_beta (Z_map e1) (Z_map e2)
 end.
 
 
-Theorem test_beta_eq : forall (e1 e2 : exp), lc_exp (Z_map e1) ->
-     lc_exp (Z_map e2) -> multi step (app (Z_map e1) (Z_map e2)) (Z_map (app e1 e2)).
+Theorem test_beta_eq : forall (e1 e2 : exp), 
+     multi step (app (Z_map e1) (Z_map e2)) (Z_map (app e1 e2)).
 Proof.
 intros. simpl. destruct (Z_map e1).
+  - constructor.
   - constructor.
   - simpl. apply multi_step with (y :=  app (abs e) (Z_map e2)). constructor; auto. constructor.
   - simpl. constructor.
 Qed.
+
+
 (*Theorem lc_step : forall (e1 e2 : exp), e1 ---> e2 -> lc_exp e1 -> lc_exp e2.
 intros.
 induction H; simpl.
 - apply lc_abs in H. *)
 
+Theorem multi_app: forall (e1 e1' e2 e2' : exp), e1 -->* e1' -> e2 -->* e2' -> app e1 e2 -->* app e1' e2'.
+Proof.
+intros. 
+induction H. induction H0. constructor.
+  -  eapply step_app_2 in H. eapply multi_step. apply H. apply IHmulti.
+  - induction H0.
+  --  eapply step_app in H. eapply multi_step. apply H. apply IHmulti.
+  --  eapply step_app in H. eapply multi_step. apply H. apply IHmulti.
+Qed.
 Theorem multi_abs : forall (e1 e2 : exp), e1 -->* e2 -> abs e1 -->* abs e2.
 Proof.
 intros. 
@@ -360,11 +446,103 @@ Theorem step_Z_map : forall (e : exp), e -->* (Z_map e).
 Proof. intros. induction e; simpl; try constructor.
   - apply multi_abs. auto.
   - destruct (Z_map e1). 
-    -- unfold app_beta. auto.
+    -- unfold app_beta. apply multi_app; auto.
+    -- unfold app_beta. apply multi_app; auto.
+    -- unfold app_beta. 
+     assert (H2: (app e1 e2) -->* (app (abs e) (Z_map e2))). 
+{
+  apply multi_app; auto.
+}
+    apply multi_step with (y:= (app (abs e) (Z_map e2))). 
+  --- apply step_beta. 
+  --- auto.
+  -- unfold app_beta. apply multi_app; auto. 
+Qed.
+
+
+Theorem abs_step : forall (e1 e1': exp), e1 -->* e1' -> abs e1 -->* abs e1'. 
+Proof.
+intros. induction H. 
+  - constructor. 
+  - apply step_abs in H. eapply multi_step. apply H. auto. 
+Qed.
+Theorem subst_Z_map : forall (e1 e2 : exp), (open_exp_wrt_exp (Z_map e1) (Z_map e2)) -->* Z_map (open_exp_wrt_exp e1 e2). 
+Proof.
+intros e1 e2.
+induction e1. 
+  - simpl. unfold open_exp_wrt_exp. destruct n. unfold open_exp_wrt_exp_rec; simpl. constructor.
+    unfold open_exp_wrt_exp_rec. simpl. constructor.
+  - simpl. unfold open_exp_wrt_exp. simpl. constructor.
+  - simpl. unfold open_exp_wrt_exp. simpl. unfold open_exp_wrt_exp in IHe1. apply abs_step.
+    
+
+    inversion L1; subst. constructor
+
+Theorem whatever : forall (e1 e1' e2 e2' : exp), e1 -->* e1' -> e2 -->* e2' -> open_exp_wrt_exp_rec 0 e2' e1' -->* (open_exp_wrt_exp_rec 0 e2 e1) ->
+open_exp_wrt_exp_rec 1 e2' e1' -->* (open_exp_wrt_exp_rec 1 e2 e1).
+Proof.
+intros.
+induction e1'. 
+  - destruct n. unfold open_exp_wrt_exp_rec in H1; simpl in H1. fold open_exp_wrt_exp_rec in H1.
+    unfold open_exp_wrt_exp_rec; simpl. fold open_exp_wrt_exp_rec. inversion H.  constructor.
+    unfold open_exp_wrt_exp_rec. simpl. constructor.
+Qed.
+
+
+
+Theorem open_step :
+  forall (e1 e2 e1' e2' : exp),
+      e1 -->* e1' -> e2 -->* e2' -> (open_exp_wrt_exp e1 e2) -->* (open_exp_wrt_exp e1' e2'). 
+Proof.
+  intros e1 e2 e1' e2' G H.
+  induction G. 
+  - induction H. 
+    -- constructor. 
+    -- eapply open_second_step in H. eapply multi_step.  apply H. auto. 
+  - induction H.
+    -- eapply open_first_step in H0. eapply multi_step.  apply H0. auto.
+    -- eapply open_first_step in H0. eapply multi_step.  apply H0. auto. 
+Qed.
+
+
+Theorem beta_Z_property : Z_prop step.
+Proof.
+unfold Z_prop. exists Z_map. intros a b H. 
+induction H.
+assert (H: (app (abs e1) e2) ---> (open_exp_wrt_exp e1 e2)). constructor.  
+     assert (L: (Z_map (app (abs e1) e2)) = (open_exp_wrt_exp (Z_map e1) (Z_map e2))).
+{
+  unfold Z_map. unfold app_beta. reflexivity. 
+}
+- split. 
+  -- assert (M:  e1 -->* (Z_map e1)). apply step_Z_map.
+    assert (N: e2 -->* (Z_map e2)). apply step_Z_map.
+    assert (O: open_exp_wrt_exp e1 e2 -->* open_exp_wrt_exp (Z_map e1) (Z_map e2)). apply open_step; auto.
+    rewrite <- L in O. auto. 
+  -- assert (M:   open_exp_wrt_exp (Z_map e1) (Z_map e2) -->* (Z_map (open_exp_wrt_exp e1 e2))). apply subst_Z_map. 
+    rewrite <- L in M. auto. 
+- split. 
+  -- destruct IHstep. assert (M:  e2 -->* Z_map e2). apply step_Z_map.
+     assert (N: app e1' e2 -->* app (Z_map e1) (Z_map e2)). apply multi_app; auto. 
+     eapply multi_trans. apply N. apply test_beta_eq. 
+  -- destruct IHstep. unfold Z_map. fold Z_map. simpl. apply app_beta_cong; auto. constructor.
+- destruct IHstep. split.
+  --  assert (M:  e1 -->* Z_map e1). apply step_Z_map.
+     assert (N: app e1 e2' -->* app (Z_map e1) (Z_map e2)). apply multi_app; auto. 
+     eapply multi_trans. apply N. apply test_beta_eq. 
+  --  unfold Z_map. fold Z_map. simpl. apply app_beta_cong; auto. constructor.
+- destruct IHstep. split. 
+  -- assert (M:  e1 -->* Z_map e1). apply step_Z_map. unfold Z_map. fold Z_map. apply abs_step. auto.
+  -- unfold Z_map. fold Z_map. apply abs_step. auto. 
+ 
+Qed.
+
+
 
 Theorem church_rosser : confluence step.
 Proof.
-unfold confluence.
+apply semi_conf_to_conf. apply semi_con_Z_prop. apply beta_Z_property.
+Qed.
 
 Inductive reducible : typ -> exp -> Prop :=
   | red_arrow : forall (G:ctx) (e:exp) (U V:typ),
