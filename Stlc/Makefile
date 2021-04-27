@@ -63,13 +63,13 @@ $(RULESFILE): stlc.ott
 
 
 
-Stlc.v: stlc.ott Makefile
-	ott -i stlc.ott -o Stlc.v -coq_lngen true -coq_expand_list_types true
-	make METALIB.FIX_Stlc
+# Stlc.v: stlc.ott Makefile
+# 	ott -i stlc.ott -o Stlc.v -coq_lngen true -coq_expand_list_types true
+# 	make METALIB.FIX_Stlc
 
-Stlc_inf.v: stlc.ott Makefile
-	lngen --coq Stlc_inf.v --coq-ott Stlc stlc.ott
-	make METALIB.FIX_Stlc_inf
+# Stlc_inf.v: stlc.ott Makefile
+# 	lngen --coq Stlc_inf.v --coq-ott Stlc stlc.ott
+# 	make METALIB.FIX_Stlc_inf
 
 %.vo : %.v
 	coqc $*.v

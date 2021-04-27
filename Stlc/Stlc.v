@@ -169,62 +169,14 @@ Qed.
 
 (** infrastructure *)
 Hint Constructors typing step lc_exp : core.
-
-(* Inductive step_count : exp -> exp -> nat -> Prop :=
-  | sc_base : forall (e:exp),
-    step_count e e 0
-  | sc_ind : forall (e1 e2 e3:exp) (n:nat),
-    step e1 e2 ->
-    step_count e2 e3 n ->
-    step_count e1 e3 (S n).
-
-Inductive bounded_reduction : exp -> nat -> Prop :=
-  | bound : forall (e1:exp) (v:nat),
-    (forall (e2:exp) (n:nat), step_count e1 e2 n -> n <= v) ->
-    bounded_reduction e1 v.
-
-Inductive strong_norm : exp -> Prop :=
-  | sn_bound : forall (e:exp),
-    (exists (v:nat), bounded_reduction e v) ->
-    strong_norm e. *)
-
-Fixpoint degree_typ (T:typ) : nat :=
-  match T with
-  | typ_base => 1
-  | (typ_arrow t1 t2) => S (max (degree_typ t1) (degree_typ t2))
-  end.
-
-
-(* 
-Fixpoint infer_type (G:ctx) (e:exp) : option typ :=
-  match e with
-  | (var_f x) => 
-
-Fixpoint degree_exp (G:ctx) (e:exp) : nat :=
-  match e with
-  | app (abs u) v =>  *)
-
-  (*this needs the redex stuff properly, but it's a start*)
-Inductive degree_exp : exp -> nat -> Prop :=
-  | deg_app_left : forall (e1 e2:exp) (n1 n2:nat),
-    n1 >= n2 ->
-    degree_exp (app e1 e2) n1
-  | deg_app_right : forall (e1 e2:exp) (n1 n2:nat),
-    n1 < n2 ->
-    degree_exp (app e1 e2) n2
-  | deg_abs_e : forall (G:ctx) (e:exp) (n:nat) (T:typ),
-    typing G (abs e) T ->
-    degree_exp e n ->
-    n >= (degree_typ T) ->
-    degree_exp (abs e) n
-  | deg_abs_T : forall (G:ctx) (e:exp) (n:nat) (T:typ),
-    typing G (abs e) T ->
-    degree_exp e n ->
-    n < (degree_typ T) ->
-    degree_exp (abs e) (degree_typ T).
-
+(*     
+    
 Definition norm (e : exp) : Prop :=
   (~ exists e2, step e e2).
+
+Lemma deg_replace : forall (G:ctx) (t u:exp) (x:var) (U:typ),
+  typing G u U ->
+  degree (open_exp_wrt_exp u x t) 
 
 Theorem weak_norm :
   forall (G:ctx) (e:exp) (T:typ),
@@ -234,4 +186,5 @@ Theorem weak_norm :
 Proof.
   intros G e T Ht.
   induction T.
-  
+       *)
+    
