@@ -2,6 +2,7 @@ Require Import Metalib.Metatheory.
 Require Import Stlc.Definitions.
 Require Import Stlc.Lemmas.
 Require Import Coq.Program.Equality.
+Require Import Coq.Logic.ClassicalFacts.
 From Coq Require Import Relations.
 
 Definition relation (X : Type) := X -> X -> Prop.
@@ -21,6 +22,10 @@ Inductive step_count :  nat -> exp -> exp  -> Prop :=
     step e1 e2 ->
     step_count n e2 e3 ->
     step_count (S n) e1 e3 .
+
+Hint Constructors multi : core .
+Hint Constructors step_count : core .
+
 (** (In the [Rel] chapter of _Logical Foundations_ and
     the Coq standard library, this relation is called
     [clos_refl_trans_1n].  We give it a shorter name here for the sake
@@ -75,13 +80,20 @@ Proof.
   induction H.
     - (* multi_refl *) assumption.
     - (* multi_step *)
-       apply IHmulti. apply multi_step with x0.  assumption.
+       apply IHmulti. apply multi_other_step with x0.  assumption.
       assumption.
 Qed.
 
 Theorem count_to_multi : forall e1 e2 n, step_count  n e1 e2  -> e1 -->* e2.
 Proof.
 intros. dependent induction H; try constructor.  econstructor; eauto.  
+Qed. 
+
+Theorem multi_to_count : forall e1 e2,  e1 -->* e2 -> exists n, step_count  n e1 e2.
+Proof.
+intros. dependent induction H.
+  - exists 0. auto.
+  - destruct IHmulti as [n IH]. exists (S n). eauto.    
 Qed. 
 
 Theorem deterministic_step : forall e1 e2 e3, e1 ---> e2 -> e1 ---> e3 -> e2 = e3.
@@ -102,26 +114,36 @@ Qed.
 Theorem deterministic_step_count : forall n e1 e2 e3, step_count n e1 e2 -> step_count n e1 e3 -> e2 = e3.
 Proof.
   intros. generalize dependent e3. dependent induction H; intros. inversion H0. auto.
-  inversion H1; subst. apply IHstep_count in H4; subst. eapply deterministic_step; eauto.  
+ inversion H1; subst.   assert (A: e2 = e5). eapply deterministic_step; eauto. subst. apply IHstep_count in H4; subst. auto.   
 Qed.
 
-Theorem test : forall e1 e2 e3, e1 ---> e2 -> e1 -->* e3 -> e1 <> e3 -> e2 -->* e3. 
+Theorem test : forall e1 e2 e3, e1 ---> e2 -> e1 -->* e3  -> e1 = e3 \/e2 -->* e3. 
 Proof.
 intros. generalize dependent e2.  induction H0; intros. 
-  - destruct H1. auto. 
-  - eapply IHmulti in H1.   
+  -  left. auto. 
+  - assert (A: y = e2). eapply deterministic_step; eauto. subst. right. auto.
 Qed.
 
-Theorem deterministic_multi_step : forall e1 m n, multi step e1 m -> multi step e1 n -> multi step m n \/ multi step n m.
+Theorem deterministic_multi_step : forall e1 m n, multi step e1 m -> multi step e1 n -> e1 = n \/ multi step m n \/ multi step n m.
 Proof.
 intros. generalize dependent n. dependent induction H; intros.
-  - left. auto.
-  -  apply IHmulti in H1. destruct H1. 
-    -- right. econstructor; eauto.   
-
+  - right. left. auto.
+  -  apply test with (e3 := n) in H; auto. destruct H; auto. 
+     apply IHmulti in H. destruct H; subst; auto. 
+Qed.
 
 Definition confluence (R : relation exp) : Prop := forall (e1 m n : exp),
-lc_exp e1 -> multi R e1 m -> multi R e1 n -> (exists f, multi R m f /\ multi R n f).
+multi R e1 m -> multi R e1 n -> (exists f, multi R m f /\ multi R n f).
+
+Theorem chruch_rosser : confluence step.
+Proof.
+unfold confluence. intros.  eapply deterministic_multi_step in H; eauto.
+destruct H. 
+  - subst. exists n. auto.
+  - destruct H. 
+    -- exists m. auto.
+    -- exists n. auto.
+Qed.
 
 Definition semi_confluence (R : relation exp) : Prop := forall (e1 m n : exp),
 lc_exp e1 -> R e1 m -> multi R e1 n -> (exists f, multi R m f /\ multi R n f).
