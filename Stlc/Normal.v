@@ -6,19 +6,28 @@ Definition norm (e : exp) : Prop :=
       (~ exists e2, step e e2).
     
 
-Fixpoint degree_typ (T:typ) : nat :=
+(* Fixpoint degree_typ (T:typ) : nat :=
   match T with
   | typ_base => 1
   | (typ_arrow t1 t2) => S (max (degree_typ t1) (degree_typ t2))
-  end.
+  end. *)
 
-Inductive degree_redex : exp -> nat -> Prop :=
+(* Inductive degree_redex : exp -> nat -> Prop :=
   | deg_app_abs : forall (G:ctx) (e1 e2:exp) (U V:typ),
     typing G (abs e1) (typ_arrow U V) ->
     degree_redex (app (abs e1) e2) (degree_typ (typ_arrow U V)).
   (* | deg_otherwise : forall (G:ctx) (e:exp),
     ~(exists (e1 e2:exp), e = (app (abs e1) e2)) ->
-    degree_redex e 0. *)
+    degree_redex e 0. *) *)
+
+(* Lemma degree_redex_unique : forall (e:exp) (n m:nat),
+  degree_redex e n ->
+  degree_redex e m ->
+  n = m.
+Proof.
+  intros e n m Hn Hm.
+  inversion Hn; inversion Hm; subst. *)
+
 
 (* 
 Fixpoint infer_type (G:ctx) (e:exp) : option typ :=
@@ -29,7 +38,7 @@ Fixpoint degree_exp (G:ctx) (e:exp) : nat :=
   match e with
   | app (abs u) v =>  *)
 
-Inductive degree_term : exp -> nat -> Prop :=
+(* Inductive degree_term : exp -> nat -> Prop :=
   | deg_app_redex : forall (e1 e2:exp) (n m r:nat),
     degree_term e1 n ->
     degree_term e2 m ->
@@ -38,29 +47,119 @@ Inductive degree_term : exp -> nat -> Prop :=
   | deg_app_other : forall (e1 e2:exp) (n m:nat),
     degree_term e1 n ->
     degree_term e2 m ->
-    degree_term (app e1 e2) (max n m).
+    ~ (exists (e1':exp), e1=(abs e1')) ->
+    degree_term (app e1 e2) (max n m)
+  | deg_var_f : forall (v:var),
+    degree_term (var_f v) 0
+  | deg_var_b : forall (n:nat),
+    degree_term (var_b n) 0
+  | deg_app : forall (n m:nat) (e1 e2:exp),
+    degree_term e1 n ->
+    degree_term e2 m ->
+    degree_term (app e1 e2) (max n m). *)
 
-  (*this needs the redex stuff properly, but it's a start*)
-(* Inductive degree_exp : exp -> nat -> Prop :=
-  | deg_app_left : forall (e1 e2:exp) (n1 n2:nat),
-    n1 >= n2 ->
-    degree_exp (app e1 e2) n1
-  | deg_app_right : forall (e1 e2:exp) (n1 n2:nat),
-    n1 < n2 ->
-    degree_exp (app e1 e2) n2
-  | deg_abs_e : forall (G:ctx) (e:exp) (n:nat) (T:typ),
-    typing G (abs e) T ->
-    degree_exp e n ->
-    n >= (degree_typ T) ->
-    degree_exp (abs e) n
-  | deg_abs_T : forall (G:ctx) (e:exp) (n:nat) (T:typ),
-    typing G (abs e) T ->
-    degree_exp e n ->
-    n < (degree_typ T) ->
-    degree_exp (abs e) (degree_typ T). *)
+(* Lemma degree_unique : forall (e:exp) (n:nat),
+  degree_term e n ->
+  degree_term n m ->
+  n = m.
+Proof.
+  intros e n Hdeg [n' [Hneq Hdeg']].
+  induction Hdeg.
+  - inversion Hdeg'; subst.
+    +  *)
 
-      
-    
+
+
+(* Lemma redex_le_term : forall (e:exp) (n m:nat),
+  degree_redex e n ->
+  degree_term e m ->
+  n <= m.
+Proof.
+  intros e n m Hred Hexp.
+  inversion Hred; subst.
+  inversion Hexp; subst. *)
+
+
+(* 
+Lemma degree_subst : forall (G:ctx) (t u:exp) (x:var) (U:typ) 
+                            (dt du dU dc:nat),
+  degree_term t dt ->
+  degree_term u du ->
+  degree_typ U dU ->
+  typing G (abs t)  ->
+  degree_term (open_exp_wrt_exp t u x) *)
+
+Fixpoint degree (e:exp) : nat :=
+  match e with
+  | (abs e') => S (degree e')
+  | (app e1 e2) => max (degree e1) (degree e2)
+  | _ => 0
+  end. 
+
+
+(* Inductive degree : exp -> nat -> Prop :=
+  | deg_abs : forall (e:exp) (n:nat),
+    degree e n ->
+    degree (abs e) (S n)
+  | deg_app : forall (e1 e2:exp) (n m:nat),
+    degree e1 n ->
+    degree e2 m ->
+    degree (app e1 e2) (max n m)
+  | deg_var_f : forall (v:var),
+    degree (var_f v) 0
+  | deg_var_b : forall (n:nat),
+    degree (var_b n) 0.
+
+Hint Constructors degree : core.
+
+Lemma degree_total : forall (e:exp),
+  exists (n:nat),
+  degree e n.
+Proof.
+  induction e.
+  (* var_b *)
+  - exists 0. auto.
+  (* var_f *)
+  - exists 0. auto.
+  (* abs *)
+  - destruct IHe as [n IHn].
+    exists (S n). auto.
+  - destruct IHe1 as [n IHn].
+    destruct IHe2 as [m IHm].
+    exists (max n m). auto.
+Qed.
+
+Lemma degree_unique : forall (e:exp) (n m:nat),
+  degree e n ->
+  degree e m ->
+  n = m.
+Proof.
+  intros e n m Hn.
+  generalize dependent m.
+  induction Hn; try intros m Hm.
+  - inversion Hm; subst.
+    apply IHHn in H0; subst. reflexivity.
+  - intros k Hk. inversion Hk; subst.
+    apply IHHn1 in H1; subst.
+    apply IHHn2 in H3; subst.
+    reflexivity.
+  - inversion Hm. reflexivity.
+  - inversion Hm. reflexivity.
+Qed.   *)
+
+Lemma open_preserves_deg : forall (t u:exp),
+  lc_exp (abs t) ->
+  lc_exp u ->
+  degree (open_exp_wrt_exp t u) = degree t. 
+
+Lemma step_dec_deg : forall (e e':exp),
+  e ---> e' ->
+  degree e = S (degree e').
+Proof.
+  intros e e' H.
+  induction H.
+  - simpl. destruct (degree e2).
+    + 
 
 Theorem weak_norm :
   forall (G:ctx) (e:exp) (T:typ),
@@ -69,7 +168,20 @@ Theorem weak_norm :
   e -->* e' /\ norm e'.
 Proof.
   intros G e T Ht.
-  induction T.
+  assert (Hd: exists (n:nat), degree e n).
+  { apply degree_total. }
+  destruct Hd as [n Hd].
+  
+
+  (* - exists (var_b n). split. apply multi_refl. 
+    unfold norm. intro H.
+    destruct H as [e He]. inversion He.
+  - exists (var_f x). split. apply multi_refl.
+    unfold norm. intro H. destruct H as [e He].
+    inversion He.
+  -  *)
+
+    
 
 (* 
 Inductive step_count : exp -> exp -> nat -> Prop :=
