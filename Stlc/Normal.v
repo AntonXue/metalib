@@ -4,70 +4,115 @@ Require Import Stlc.Stlc.
 
 Definition norm (e : exp) : Prop :=
       (~ exists e2, step e e2).
-    
 
-(* Fixpoint degree_typ (T:typ) : nat :=
+Inductive wn (G:ctx) : ctx -> typ -> exp -> Prop :=
+  | wn_ne : forall (T:typ) (e:exp), 
+    neutral G T e -> wn G T e
+  | wn_lam : forall (A B:typ) (e:exp) (x:var),
+    wn ((x ~ A) ++ G) B e ->
+    wn G (typ_arrow A B) (abs a)  
+
+
+
+Fixpoint degree_typ (T:typ) : nat :=
   match T with
   | typ_base => 1
   | (typ_arrow t1 t2) => S (max (degree_typ t1) (degree_typ t2))
-  end. *)
+  end.
 
-(* Inductive degree_redex : exp -> nat -> Prop :=
+Inductive degree_redex : ctx -> typ -> exp -> nat -> Prop :=
   | deg_app_abs : forall (G:ctx) (e1 e2:exp) (U V:typ),
     typing G (abs e1) (typ_arrow U V) ->
-    degree_redex (app (abs e1) e2) (degree_typ (typ_arrow U V)).
+    degree_redex G (typ_arrow U V)
+      (app (abs e1) e2) (degree_typ (typ_arrow U V)).
   (* | deg_otherwise : forall (G:ctx) (e:exp),
     ~(exists (e1 e2:exp), e = (app (abs e1) e2)) ->
-    degree_redex e 0. *) *)
+    degree_redex e 0. *)
 
-(* Lemma degree_redex_unique : forall (e:exp) (n m:nat),
-  degree_redex e n ->
-  degree_redex e m ->
+Lemma degree_redex_unique : forall (e:exp) 
+    (G:ctx) (T:typ) (n m:nat),
+  degree_redex G T e n ->
+  degree_redex G T e m ->
   n = m.
 Proof.
-  intros e n m Hn Hm.
-  inversion Hn; inversion Hm; subst. *)
+  intros e G T n m Hn Hm.
+  inversion Hn; inversion Hm; subst.
+  inversion H6; subst. reflexivity.
+Qed.
 
-
-(* 
-Fixpoint infer_type (G:ctx) (e:exp) : option typ :=
+Definition tm_deg_type (t:typ) (e:exp) : typ :=
   match e with
-  | (var_f x) => 
+  | (app e1 e2) => match t with
+    | (typ_arrow U V) => U
+    | (typ_base) => typ_base (*this should never happen if e is well-typed*)
+    end
+  | _ => t
+  end.
 
-Fixpoint degree_exp (G:ctx) (e:exp) : nat :=
-  match e with
-  | app (abs u) v =>  *)
 
-(* Inductive degree_term : exp -> nat -> Prop :=
-  | deg_app_redex : forall (e1 e2:exp) (n m r:nat),
-    degree_term e1 n ->
-    degree_term e2 m ->
-    degree_redex (app e1 e2) r ->
-    degree_term (app e1 e2) (max (max n m) r)
-  | deg_app_other : forall (e1 e2:exp) (n m:nat),
-    degree_term e1 n ->
-    degree_term e2 m ->
-    ~ (exists (e1':exp), e1=(abs e1')) ->
-    degree_term (app e1 e2) (max n m)
-  | deg_var_f : forall (v:var),
-    degree_term (var_f v) 0
-  | deg_var_b : forall (n:nat),
-    degree_term (var_b n) 0
-  | deg_app : forall (n m:nat) (e1 e2:exp),
-    degree_term e1 n ->
-    degree_term e2 m ->
-    degree_term (app e1 e2) (max n m). *)
+Inductive degree_term : ctx -> typ -> exp -> nat -> Prop :=
+  | deg_app_redex : forall (e1 e2:exp) (G:ctx) (U V:typ) (n m r:nat),
+    degree_term G (tm_deg_type (typ_arrow U V) e1) e1 n ->
+    degree_term G (tm_deg_type U e2) e2 m ->
+    degree_redex G (typ_arrow U V) (app e1 e2) r ->
+    degree_term G (typ_arrow U V) (app e1 e2) (max (max n m) r)
+  | deg_app_no_redex : forall (e1 e2: exp) (G:ctx) (U V:typ) (n m:nat),
+    degree_term G (tm_deg_type (typ_arrow U V) e1) e1 n ->
+    degree_term G (tm_deg_type U e2) e2 m ->
+    ~(exists (r:nat), degree_redex G (typ_arrow U V) (app e1 e2) r) ->
+    degree_term G (typ_arrow U V) (app e1 e2) (max n m)
+  | deg_abs : forall (e:exp) (G:ctx) (U V:typ) (x:var) (L:vars) 
+      (n m:nat),
+    (fresh nil) \notin L ->
+    degree_term (( (fresh nil) ~ U )++ G ) (tm_deg_type V e)
+      (open_exp_wrt_exp e (var_f (fresh nil))) n ->
+    degree_term G (typ_arrow U V) (abs e) n
+  | deg_var_f : forall (G:ctx) (T:typ) (x:var),
+    typing G (var_f x) T ->
+    degree_term G T (var_f x) 0
+  | deg_var_b : forall (G:ctx) (T:typ) (n:nat),
+    typing G (var_b n) T ->
+    degree_term G T (var_b n) 0.
 
-(* Lemma degree_unique : forall (e:exp) (n:nat),
-  degree_term e n ->
-  degree_term n m ->
+Hint Constructors degree_redex degree_term : core.
+
+
+Lemma degree_unique : forall (G:ctx) (T:typ) (e:exp) (n m:nat),
+  degree_term G T e n ->
+  degree_term G T e m ->
   n = m.
 Proof.
-  intros e n Hdeg [n' [Hneq Hdeg']].
-  induction Hdeg.
-  - inversion Hdeg'; subst.
-    +  *)
+  intros G T e n m Hn.
+  generalize dependent m.
+  induction Hn.
+  - intros deg Hdeg; inversion Hdeg; subst.
+    + assert (Hr:r0 = r). {
+        eapply degree_redex_unique.
+        apply H8. apply H.
+      }
+      subst.
+      apply IHHn1 in H5; subst.
+      apply IHHn2 in H7; subst. auto.
+    + exfalso. apply H8. exists r. apply H.
+  - intros deg Hdeg; inversion Hdeg; subst; auto.
+    exfalso. apply H. exists r. apply H8.
+  - intros deg Hdeg; inversion Hdeg; subst.
+    (*assert (Hx: x = x0). { admit. } subst.*)
+    apply IHHn in H6. assumption.
+  - intros deg Hdeg; inversion Hdeg; auto.
+  - intros deg Hdeg; inversion Hdeg; auto.
+Qed.
 
+Lemma degree_total : forall (e:exp) (G:ctx) (T:typ),
+  typing G e T ->
+  exists (n:nat), degree_term G T e n.
+Proof.
+  induction e.
+  - exists 0. auto.
+  - exists 0. auto.
+  - intros G T Ht.
+    inversion Ht; subst.
+    
 
 
 (* Lemma redex_le_term : forall (e:exp) (n m:nat),
@@ -80,21 +125,21 @@ Proof.
   inversion Hexp; subst. *)
 
 
-(* 
-Lemma degree_subst : forall (G:ctx) (t u:exp) (x:var) (U:typ) 
+
+Lemma degree_subst : forall (G:ctx) (t u:exp) (x:var) (U V:typ) 
                             (dt du dU dc:nat),
-  degree_term t dt ->
-  degree_term u du ->
+  degree_term G U t dt ->
+  degree_term G U u du ->
   degree_typ U dU ->
   typing G (abs t)  ->
-  degree_term (open_exp_wrt_exp t u x) *)
+  degree_term (open_exp_wrt_exp t u x).
 
-Fixpoint degree (e:exp) : nat :=
+(* Fixpoint degree (e:exp) : nat :=
   match e with
   | (abs e') => S (degree e')
-  | (app e1 e2) => max (degree e1) (degree e2)
+  | (app e1 e2) => (degree e1) + (degree e2)
   | _ => 0
-  end. 
+  end.  *)
 
 
 (* Inductive degree : exp -> nat -> Prop :=
@@ -147,10 +192,10 @@ Proof.
   - inversion Hm. reflexivity.
 Qed.   *)
 
-Lemma open_preserves_deg : forall (t u:exp),
+(* Lemma open_preserves_deg : forall (t u:exp),
   lc_exp (abs t) ->
   lc_exp u ->
-  degree (open_exp_wrt_exp t u) = degree t. 
+  degree (open_exp_wrt_exp t u) = degree t. *)
 
 Lemma step_dec_deg : forall (e e':exp),
   e ---> e' ->

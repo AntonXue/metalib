@@ -1,0 +1,87 @@
+
+(*Degree of a redex with a type in a context
+- NOT the type of the redex as a whole, the type of the abstraction
+
+Degree of a term with a type in a context
+- How the fuck is this supposed to work?
+- we pick some type and commit to it down the whole thing
+- and that works for redexes but not in general unless we can figure
+  out how to split up the types
+  everything is either a var (term degree 0 for all types), app, or abs.
+  for an app, it could be a redex - take the type of the function
+  being applied just like a redex, i.e. left expression 
+  for an abs, can't be a redex, but can just take its own type
+  
+  so concept: app takes the type of its left expression, must be an
+  arrow type in order to typecheck
+  but then we can't give a type to the right expression, what if it's
+  also an app?
+
+
+  alternate route: every term takes its own type, but app 
+  asks for redex degree only if its left expression has an arrow type?
+  every redex must have an arrow type?
+
+  - PROBLEM - if each term takes its own type, app expression
+  can't guarantee what will be on the left
+  - app expression only has the type of the output
+  - but what about the input? that can also have infinite possible types
+  - but didn't we fix it somewhere?
+  - not fixed enough, I don't think
+    - specifically, not fixed inductively
+    - the input has whatever type goes into the left
+    - so really the variation in the left is just the variation in the right
+    - okay what if we just took the type of the right?
+        - again, can't pass down. no equivalent for abs
+        - can we fixpoint that? like give it a type and expression, 
+        let it match the expression and pull the relevant bits out of 
+        the type?
+        hmmmmmmmmmmmmmmmm
+  - we can't just do a list of types of subterms that would be ridiculous
+  - 
+
+  but then we need to ensure left expression actually has a type when
+  we're asking
+
+  x \notin L ->
+  degree_term (( x ~ U )++ G ) (typ_arrow U V) 
+    (open_exp_wrt_exp e1 (var_f x)) n ->
+  
+
+(lam x: (lam y: x y)) : (U -> V) -> U -> V for any U, V
+assume this typechecked as that for some particular U, V
+does (lam y: x y) need to typecheck as U -> V?
+if so we need to introduce a new free variable and add it to G
+and substitute it in y when calculating degree of Y
+
+(((lam x: (lam y: x y)) f) z)
+
+(lam x: ((lam y: x y) z)) f
+f : U -> V
+x : U -> V
+z : U
+y : U
+(lam x: ((lam y: x y) z)) : (U -> V) -> V
+(lam y: x y) : U -> V
+
+(( x ~ T1 )++ G )   ( open_exp_wrt_exp e (var_f x) )*)
+
+(* Inductive degree_term : exp -> nat -> Prop :=
+  | deg_app_redex : forall (e1 e2:exp) (n m r:nat),
+    degree_term e1 n ->
+    degree_term e2 m ->
+    degree_redex (app e1 e2) r ->
+    degree_term (app e1 e2) (max (max n m) r)
+  | deg_app_other : forall (e1 e2:exp) (n m:nat),
+    degree_term e1 n ->
+    degree_term e2 m ->
+    ~ (exists (e1':exp), e1=(abs e1')) ->
+    degree_term (app e1 e2) (max n m)
+  | deg_var_f : forall (v:var),
+    degree_term (var_f v) 0
+  | deg_var_b : forall (n:nat),
+    degree_term (var_b n) 0
+  | deg_app : forall (n m:nat) (e1 e2:exp),
+    degree_term e1 n ->
+    degree_term e2 m ->
+    degree_term (app e1 e2) (max n m). *)
