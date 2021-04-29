@@ -90,7 +90,7 @@ Hint Constructors step_count : core .
     [y]. *)
 
 (** We write [-->*] for the [multi step] relation on terms. *)
-Notation " t '--->' t' " := (step t t') (at level 60).
+Notation " t '--->' t' " := ((abs_step 0)  t t') (at level 60).
 Notation " t '--->*' t' " := (multi (abs_step 0) t t') (at level 60).
 Notation " t '-->*' t' " := (multi step t t') (at level 40).
 Theorem multi_R : forall (X : Type) (R : relation X) (x y : X),
@@ -148,6 +148,8 @@ Definition c_one := (abs (abs (app (var_b 1) (var_b 0)))).
 Definition c_two :=  (abs (abs (app (var_b 1) (app (var_b 1) (var_b 0))))).
 
 Definition c_three :=  (abs (abs (app (var_b 1) (app (var_b 1) (app (var_b 1) (var_b 0)))))).
+
+Definition c_four :=  (abs (abs (app (var_b 1) (app (var_b 1) (app (var_b 1) (app (var_b 1) (var_b 0))))))).
 Lemma c_two_eqiv : church_number 2 = c_two.
 Proof.
   unfold church_number. simpl. unfold c_two. auto. 
@@ -390,7 +392,7 @@ intros. induction a. auto. unfold_open. f_equal. auto.
 }auto.
 Qed.
 
-Definition multi_lam_helper : exp := (abs (abs (abs (app (var_b 3) (app (app (var_b 2) (var_b 1)) (var_b 0) ))))).
+Definition multi_lam_helper : exp := (abs (abs (abs (app (app (var_b 3) (app (var_b 2) (var_b 1))) (var_b 0) )))).
 Definition multi_lam : exp := (abs multi_lam_helper).
 Lemma add_lam_open_m : forall (n m : nat), (m > 1) -> (open_exp_wrt_exp_rec_abs 0 m (abs (abs (var_b 0))) (church_number n)) = (church_number n).
 Proof.
@@ -495,7 +497,8 @@ Qed.
 
 Definition comm_step (R : exp) : Prop := forall n m, is_church n -> is_church m -> exists e, (app (app R n) m) --->* e /\ app (app R m) n --->* e.
 
-Theorem multi_app: forall (e1 e1' e2 e2' : exp), e1 --->* e1' -> e2 --->* e2' -> app e1 e2 --->* app e1' e2'.
+Theorem multi_app: forall (e1 e1' e2 e2' : exp) (n : nat), multi (abs_step n) e1 e1' -> multi (abs_step n) e2 e2' -> 
+multi (abs_step n) (app e1 e2) (app e1' e2').
 Proof.
 intros. 
 induction H. induction H0. constructor.
@@ -527,4 +530,136 @@ rewrite -> plus_assoc. constructor.
 eapply multi_trans. eapply multi_app. constructor. 
  apply add_lam_correct. eapply multi_trans. apply add_lam_correct.
 rewrite -> plus_assoc. constructor.
+Qed.
+
+Lemma multi_lam_test : app (app multi_lam c_two) c_two --->* c_four.
+Proof.
+unfold multi_lam.  eapply multi_step. 
+  - eapply abs_step_app. apply abs_step_beta. 
+  - unfold_open. eapply multi_step.
+  --  apply abs_step_beta.
+ --  unfold_open.
+eapply multi_step.
+  --- eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app. apply abs_step_beta. 
+  --- unfold_open.
+eapply multi_step.
+  ---- eapply abs_step_abs. eapply abs_step_abs.  apply abs_step_beta.
+  ---- unfold_open. eapply multi_step.
+  ----- eapply abs_step_abs. eapply abs_step_abs.  eapply abs_step_app. apply abs_step_beta.
+  ----- unfold_open. eapply multi_step.
+  ------ eapply abs_step_abs. eapply abs_step_abs. apply abs_step_beta.
+  ------ unfold_open. eapply multi_step.
+  ------- eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app_2. eapply abs_step_app_2.
+eapply abs_step_app. apply abs_step_beta.
+  ------- unfold_open. eapply multi_step.
+  -------- eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app_2. eapply abs_step_app_2. apply abs_step_beta.
+  -------- unfold_open. econstructor. 
+Qed.
+Fixpoint stack_abs (n : nat) : exp :=
+match n with
+  |0 =>  (var_b 0)
+  | S n' => (app (abs (var_b 0)) (stack_abs n'))
+end.
+
+Theorem open_to_stack : forall n m, (open_exp_wrt_exp_rec_abs  (S m) 1 (abs (var_b 0)) (remove_abs (church_number n))) = stack_abs n. 
+Proof.
+intros. induction n. 
+simpl. auto.
+simpl.  f_equal. auto.
+Qed.
+
+Theorem stack_simpl : forall n m, (multi (abs_step m) (stack_abs n)  (var_b 0)). 
+Proof.
+intros. induction n. 
+constructor. 
+simpl. eapply multi_step. apply abs_step_beta. unfold_open. auto.
+Qed. 
+
+Theorem abs_step_multi : forall (e1 e1': exp) n, multi (abs_step (S n)) e1 e1'-> multi (abs_step n) (abs e1) (abs e1'). 
+Proof.
+intros. induction H. 
+  - constructor. 
+  - apply abs_step_abs in H. apply multi_step with (y0 := (abs y)). apply H. auto. 
+Qed.
+
+Theorem multi_lam_helper_0 : forall (n m: nat), multi (abs_step m) (abs (app (app (church_number n) (abs (var_b 0))) (var_b 0)))   (abs (var_b 0)).
+Proof.
+intros. 
+induction n. simpl.
+eapply multi_step.  eapply abs_step_abs. eapply abs_step_app. apply abs_step_beta. 
+unfold_open. eapply multi_step.  eapply abs_step_abs. apply abs_step_beta. unfold_open.  constructor. 
+simpl.  
+eapply multi_step.  eapply abs_step_abs. eapply abs_step_app. apply abs_step_beta. 
+unfold_open. rewrite -> open_to_stack. eapply multi_trans. eapply abs_step_multi. eapply multi_app. 
+ eapply abs_step_multi. eapply multi_app. constructor. apply stack_simpl. constructor.    
+eapply multi_step.  eapply abs_step_abs. eapply abs_step_app. eapply abs_step_abs.  eapply abs_step_beta.
+unfold_open.  
+eapply multi_step.  eapply abs_step_abs.   eapply abs_step_beta.
+constructor. 
+Qed.
+Theorem multi_lam_correct_0 : forall (n : nat), (app (app multi_lam (church_number n)) (church_number 0 )) --->* church_number (0).
+Proof.
+intros. 
+unfold add_lam.  eapply multi_step. 
+  - eapply abs_step_app. apply abs_step_beta. 
+  - unfold_open. eapply multi_step.
+  --  apply abs_step_beta.
+ --  unfold_open. rewrite -> add_lam_open_m; auto. 
+eapply multi_step.
+  --- eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app.  eapply abs_step_app_2. apply abs_step_beta. 
+  --- unfold_open.
+eapply multi_trans. eapply abs_step_multi. apply  multi_lam_helper_0. constructor.
+Qed.
+Lemma church_step_one_helper : forall (n : nat), open_exp_wrt_exp_abs 2 (abs (app (var_b 1) (remove_abs (church_number n)))) 
+(var_b 1) =  (abs (app (var_b 1) (remove_abs (church_number n)))).
+Proof.
+intros. induction n. 
+auto. 
+unfold_open. f_equal. f_equal. f_equal. apply add_lam_open_1. auto.
+
+Qed.
+Theorem church_step_one : forall (n : nat), abs_step 2 (app (church_number n) (var_b 1)) (abs (remove_abs (church_number n))).
+Proof.
+intros. induction n. 
+simpl. apply abs_step_beta. 
+simpl.
+assert (A: abs_step 2 (app (abs (abs (app (var_b 1) (remove_abs (church_number n))))) (var_b 1))
+  (open_exp_wrt_exp_abs 2 (abs (app (var_b 1) (remove_abs (church_number n)))) (var_b 1))).
+apply abs_step_beta.  rewrite -> church_step_one_helper in A. auto. 
+
+Qed.
+
+
+Theorem multi_lam_open_S_0 : forall (n m : nat), (open_exp_wrt_exp_rec_abs 0 4 (church_number m)
+                       (remove_abs (church_number n))) = (remove_abs (church_number n)). 
+Proof.
+intros. induction n. auto. 
+simpl. f_equal. auto.
+Qed.
+Theorem multi_lam_correct_S : forall (n m : nat),  
+(app (app multi_lam (church_number (S n))) (church_number m)) --->* church_number (m + n * m).
+intros. simpl. 
+ eapply multi_step. 
+eapply abs_step_app. apply abs_step_beta.
+unfold_open.  
+ eapply multi_step. apply abs_step_beta.
+unfold_open. rewrite -> multi_lam_open_S_0.   
+ eapply multi_step. eapply abs_step_abs. eapply abs_step_abs.
+eapply abs_step_app. eapply abs_step_app_2. eapply church_step_one.
+ eapply multi_step. eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app.
+ apply abs_step_beta.
+unfold_open. 
+
+Theorem multi_lam_open_S_0 : forall (n m : nat), (open_exp_wrt_exp_rec_abs 0 4 (church_number m)
+                       (remove_abs (church_number n))) = (remove_abs (church_number n)). 
+Proof.
+intros. induction n. 
+- simpl. auto. 
+- simpl. f_equal. auto. 
+Qed.
+Theorem multi_lam_helper_step : forall (n : nat), (app (abs (abs (app (var_b 1) (remove_abs (church_number n))))) (abs (var_b 0)))
+--->* (app (church_number n) (abs (var_b 0))). 
+Proof.
+intros. induction n.
+- simpl.  eapply multi_step. apply abs_step_beta. unfold_open. constructor.  
 Qed.
