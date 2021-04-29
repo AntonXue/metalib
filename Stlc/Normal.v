@@ -4,7 +4,15 @@ Require Import Stlc.Stlc.
 
 Definition norm (e : exp) : Prop :=
       (~ exists e2, step e e2).
-    
+
+Inductive wn (G:ctx) : ctx -> typ -> exp -> Prop :=
+  | wn_ne : forall (T:typ) (e:exp), 
+    neutral G T e -> wn G T e
+  | wn_lam : forall (A B:typ) (e:exp) (x:var),
+    wn ((x ~ A) ++ G) B e ->
+    wn G (typ_arrow A B) (abs a)  
+
+
 
 Fixpoint degree_typ (T:typ) : nat :=
   match T with
@@ -66,6 +74,8 @@ Inductive degree_term : ctx -> typ -> exp -> nat -> Prop :=
     typing G (var_b n) T ->
     degree_term G T (var_b n) 0.
 
+Hint Constructors degree_redex degree_term : core.
+
 
 Lemma degree_unique : forall (G:ctx) (T:typ) (e:exp) (n m:nat),
   degree_term G T e n ->
@@ -92,6 +102,18 @@ Proof.
   - intros deg Hdeg; inversion Hdeg; auto.
   - intros deg Hdeg; inversion Hdeg; auto.
 Qed.
+
+Lemma degree_total : forall (e:exp) (G:ctx) (T:typ),
+  typing G e T ->
+  exists (n:nat), degree_term G T e n.
+Proof.
+  induction e.
+  - exists 0. auto.
+  - exists 0. auto.
+  - intros G T Ht.
+    inversion Ht; subst.
+    
+
 
 (* Lemma redex_le_term : forall (e:exp) (n m:nat),
   degree_redex e n ->
