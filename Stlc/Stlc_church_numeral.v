@@ -425,7 +425,35 @@ simpl. unfold_open. f_equal. auto.
  
 Qed. 
 
-Theorem add_lam_correct_S : forall (n m : nat), (app (app add_lam (church_number n)) (church_number m )) --->* church_number (n + m) -> 
+Theorem add_lam_open_S_0 : forall (n m : nat), (open_exp_wrt_exp_rec_abs 0 4 (abs (abs (app (var_b 1) (remove_abs (church_number m)))))
+                       (remove_abs (church_number n))) = (remove_abs (church_number n)). 
+Proof.
+intros. induction n. 
+- simpl. auto. 
+- simpl. f_equal. auto. 
+Qed.
+
+Theorem add_lam_open_S_step : forall (n m : nat), (open_exp_wrt_exp_rec_abs 2 0 (app (var_b 1) (remove_abs (church_number m))) (remove_abs (church_number n)))
+= (app (var_b 1) (remove_abs (church_number (n + m)))).
+Proof.
+intros. induction n; intros; auto.  
+simpl. rewrite -> IHn.  auto.
+Qed. 
+
+Theorem add_lam_S_step : forall (n m : nat), abs (abs (app (abs (app (var_b 1) (remove_abs (church_number n)))) (app (var_b 1) (remove_abs (church_number m))))) --->*
+abs (abs (app (var_b 1) (app (var_b 1) (remove_abs (church_number (n + m)))))).
+Proof.
+intros n. induction n; intros; auto. 
+simpl. 
+- eapply multi_step.
+   eapply abs_step_abs. eapply abs_step_abs.  apply abs_step_beta.
+unfold_open. constructor. 
+- simpl. eapply multi_step.
+   eapply abs_step_abs. eapply abs_step_abs.  apply abs_step_beta.
+unfold_open. rewrite -> add_lam_open_S_step. auto.
+Qed.
+
+Theorem add_lam_correct_S : forall (n m : nat),  
 (app (app add_lam (church_number n)) (church_number (S m ))) --->* church_number (S (n + m)).
 Proof.
 unfold add_lam. intros n. induction n; intros; auto.
@@ -444,7 +472,59 @@ eapply multi_step.
   ------ unfold_open. eapply multi_step.
   ------- eapply abs_step_abs. eapply abs_step_abs. apply abs_step_beta.
   -------  unfold_open. rewrite -> add_lam_open_0. constructor.
-- 
+- simpl. eapply multi_step. 
+  -- eapply abs_step_app. apply abs_step_beta. 
+  -- unfold_open. eapply multi_step.
+  ---  apply abs_step_beta.
+  --- unfold_open. rewrite -> add_lam_open_S_0. 
 eapply multi_step.
+eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app. apply abs_step_beta.
+unfold_open. rewrite -> add_lam_open_1; auto. 
+eapply multi_step. 
+eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app_2. eapply abs_step_app. apply abs_step_beta.
+unfold_open. rewrite -> add_lam_open_1; auto. 
+eapply multi_step. 
+eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app_2.  apply abs_step_beta.
+unfold_open. rewrite -> add_lam_open_0. eapply multi_trans. apply add_lam_S_step.  auto. 
+Qed. 
+Theorem add_lam_correct : forall (n m : nat), (app (app add_lam (church_number n)) (church_number m )) --->* church_number (n + m).
+Proof. destruct m. 
+- rewrite <- plus_n_O. apply add_lam_correct_0. 
+- rewrite <- plus_n_Sm. apply add_lam_correct_S.
+Qed.
 
-Theorem add_lam_correct : forall (n m : nat), (app (app add_lam (church_number n)) (church_number m )) --->* church_number (m + n).
+Definition comm_step (R : exp) : Prop := forall n m, is_church n -> is_church m -> exists e, (app (app R n) m) --->* e /\ app (app R m) n --->* e.
+
+Theorem multi_app: forall (e1 e1' e2 e2' : exp), e1 --->* e1' -> e2 --->* e2' -> app e1 e2 --->* app e1' e2'.
+Proof.
+intros. 
+induction H. induction H0. constructor.
+  -  eapply abs_step_app_2 in H. eapply multi_step. apply H. apply IHmulti.
+  - induction H0.
+  --  eapply abs_step_app in H. eapply multi_step. apply H. apply IHmulti.
+  --  eapply abs_step_app in H. eapply multi_step. apply H. apply IHmulti.
+Qed.
+
+Definition assoc_step (R : exp) : Prop := forall n m o,
+is_church o -> is_church n -> is_church m -> exists e, (app (app R (app (app R n) m)) o) --->* e /\ (app (app R n) (app (app R m) o)) --->* e.
+
+Theorem add_step_comm : comm_step add_lam. 
+Proof.
+unfold comm_step. intros. 
+  apply church_valid in H. apply church_valid in H0. destruct H. destruct H0.
+  subst. exists (church_number (x + x0)). split. apply add_lam_correct.
+  rewrite plus_comm.  apply add_lam_correct.
+Qed.
+
+Theorem add_step_assoc : assoc_step add_lam. 
+Proof.
+unfold assoc_step. intros. 
+  apply church_valid in H. apply church_valid in H0. apply church_valid in H1. 
+destruct H1. destruct H. destruct H0.
+  subst. exists (church_number (x1 + (x + x0))). split. eapply multi_trans. eapply multi_app. eapply multi_app.
+constructor. apply add_lam_correct. constructor. eapply multi_trans. apply add_lam_correct.
+rewrite -> plus_assoc. constructor.  
+eapply multi_trans. eapply multi_app. constructor. 
+ apply add_lam_correct. eapply multi_trans. apply add_lam_correct.
+rewrite -> plus_assoc. constructor.
+Qed.
