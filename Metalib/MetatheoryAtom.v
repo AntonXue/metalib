@@ -133,11 +133,12 @@ Proof. exact Atom.eq_dec. Defined.
     this library.  In order to avoid polluting Coq's namespace, we do
     not use [Module Export]. *)
 
-Module Import AtomSetImpl : FSetExtra.WSfun Atom :=
+Module Export AtomSetImpl : FSetExtra.WSfun Atom :=
   FSetExtra.Make Atom.
 
 Notation atoms :=
   AtomSetImpl.t.
+
 
 (** The [AtomSetDecide] module provides the [fsetdec] tactic for
     solving facts about finite sets of atoms. *)
@@ -175,6 +176,7 @@ Proof.
   exists a. intros J. contradiction H.
   rewrite <- CoqListFacts.InA_iff_In. auto using elements_1.
 Qed.
+
 
 
 (* ********************************************************************** *)

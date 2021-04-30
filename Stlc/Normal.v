@@ -1,16 +1,24 @@
 (* Require Import Lemmas. *)
 Require Import Metalib.Metatheory.
+Require Import Metalib.MetatheoryAtom.
 Require Import Stlc.Stlc.
+
+Require Import Coq.FSets.FSetInterface.
+Require Import Metalib.CoqListFacts.
+Require Import Metalib.CoqFSetInterface.
+Require Import Metalib.FSetExtra.
+Require Import Metalib.FSetWeakNotin.
+Require Import Metalib.LibTactics.
 
 Definition norm (e : exp) : Prop :=
       (~ exists e2, step e e2).
-
+(* 
 Inductive wn (G:ctx) : ctx -> typ -> exp -> Prop :=
-  | wn_ne : forall (T:typ) (e:exp), 
+  | wn_ne : forall (T:typ) (e:exp) (x:var),  
     neutral G T e -> wn G T e
   | wn_lam : forall (A B:typ) (e:exp) (x:var),
     wn ((x ~ A) ++ G) B e ->
-    wn G (typ_arrow A B) (abs a)  
+    wn G (typ_arrow A B) (abs a)   *)
 
 
 
@@ -49,6 +57,12 @@ Definition tm_deg_type (t:typ) (e:exp) : typ :=
   | _ => t
   end.
 
+  
+Definition atom_fresh_for_set (L:atoms) :=
+  match (atom_fresh L) with
+  | (exist _ x _ ) => x
+  end.
+
 
 Inductive degree_term : ctx -> typ -> exp -> nat -> Prop :=
   | deg_app_redex : forall (e1 e2:exp) (G:ctx) (U V:typ) (n m r:nat),
@@ -61,11 +75,10 @@ Inductive degree_term : ctx -> typ -> exp -> nat -> Prop :=
     degree_term G (tm_deg_type U e2) e2 m ->
     ~(exists (r:nat), degree_redex G (typ_arrow U V) (app e1 e2) r) ->
     degree_term G (typ_arrow U V) (app e1 e2) (max n m)
-  | deg_abs : forall (e:exp) (G:ctx) (U V:typ) (x:var) (L:vars) 
+  | deg_abs : forall (e:exp) (G:ctx) (U V:typ) (L:vars)
       (n m:nat),
-    (fresh nil) \notin L ->
-    degree_term (( (fresh nil) ~ U )++ G ) (tm_deg_type V e)
-      (open_exp_wrt_exp e (var_f (fresh nil))) n ->
+    degree_term (((atom_fresh_for_set L) ~ U )++ G ) (tm_deg_type V e)
+      (open_exp_wrt_exp e (var_f (atom_fresh_for_set L))) n ->
     degree_term G (typ_arrow U V) (abs e) n
   | deg_var_f : forall (G:ctx) (T:typ) (x:var),
     typing G (var_f x) T ->
@@ -97,8 +110,7 @@ Proof.
   - intros deg Hdeg; inversion Hdeg; subst; auto.
     exfalso. apply H. exists r. apply H8.
   - intros deg Hdeg; inversion Hdeg; subst.
-    (*assert (Hx: x = x0). { admit. } subst.*)
-    apply IHHn in H6. assumption.
+    apply IHHn in H4. assumption.
   - intros deg Hdeg; inversion Hdeg; auto.
   - intros deg Hdeg; inversion Hdeg; auto.
 Qed.
@@ -107,9 +119,10 @@ Lemma degree_total : forall (e:exp) (G:ctx) (T:typ),
   typing G e T ->
   exists (n:nat), degree_term G T e n.
 Proof.
-  induction e.
+  intros e G T H.
+  induction H.
   - exists 0. auto.
-  - exists 0. auto.
+  - assert (Hi: (atom_fresh_for_set (fv_exp e)) \notin (L) )
   - intros G T Ht.
     inversion Ht; subst.
     
