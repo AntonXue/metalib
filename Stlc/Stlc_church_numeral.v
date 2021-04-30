@@ -4,6 +4,7 @@ Require Import Stlc.Lemmas.
 Require Import Coq.Program.Equality.
 Require Import Coq.Logic.ClassicalFacts.
 From Coq Require Import Relations.
+From Coq Require Import Init.Nat.
 (* We have extended step semantics to deal with stepping within abstractions *)
 Fixpoint open_exp_wrt_exp_rec_abs (n:nat) (k:nat) (e_5:exp) (e__6:exp) {struct e__6}: exp :=
   match e__6 with
@@ -12,8 +13,8 @@ Fixpoint open_exp_wrt_exp_rec_abs (n:nat) (k:nat) (e_5:exp) (e__6:exp) {struct e
         | inleft (left _) => var_b nat
         | inleft (right _) => e_5
         | inright _ =>
-      match lt_eq_lt_dec nat n with
-        | inright _ => var_b (nat - 1)
+      match compare nat n with
+        | Gt => var_b (nat - 1)
         |  _ => var_b (nat)
 end
       end
@@ -629,15 +630,131 @@ apply abs_step_beta.  rewrite -> church_step_one_helper in A. auto.
 
 Qed.
 
-
 Theorem multi_lam_open_S_0 : forall (n m : nat), (open_exp_wrt_exp_rec_abs 0 4 (church_number m)
                        (remove_abs (church_number n))) = (remove_abs (church_number n)). 
 Proof.
 intros. induction n. auto. 
 simpl. f_equal. auto.
 Qed.
+Fixpoint stack_mult (n m: nat) : exp :=
+match n with
+  |0 =>  (var_b 0)
+  | S n' => (app (abs (remove_abs (church_number m))) (stack_mult n' m))
+end.
+
+Fixpoint add_b_1 (n : nat) (e : exp) : exp :=
+match n with 
+  |0 => e
+  | S n' => (app (var_b 1) (add_b_1 n' e))
+end.
+
+Theorem  lol : forall (n m o : nat), (open_exp_wrt_exp_abs o (abs (remove_abs (church_number n))) (abs (remove_abs (church_number m)))) = 
+  (abs (stack_mult n m)).
+Proof.
+intros. induction n. simpl. induction m. 
+auto. 
+simpl.  unfold_open. auto. 
+unfold_open. f_equal. f_equal. unfold open_exp_wrt_exp_abs in IHn. unfold open_exp_wrt_exp_rec_abs in IHn. simpl.
+fold open_exp_wrt_exp_rec_abs in IHn. injection IHn; auto. 
+Qed.
+Theorem stack_mult_equ : forall n m o,  (abs_step o) (app (church_number n) (abs (remove_abs (church_number m)))) (abs (stack_mult n m)). 
+Proof.
+intros. 
+assert (A: (abs_step o) (app (church_number n) (abs (remove_abs (church_number m))))
+ ((open_exp_wrt_exp_abs o (abs (remove_abs (church_number n))) (abs (remove_abs (church_number m)))))).
+{
+assert (C : exists c,  abs (abs c) = church_number n).
+apply  church_abs. destruct C. rewrite <- H. simpl.  
+apply abs_step_beta.
+}
+rewrite -> lol in A. auto.
+Qed.  
+
+Theorem stack_mult_simpl_h : forall n m o, (open_exp_wrt_exp_rec_abs 3 0 (stack_mult n o) (remove_abs (church_number m))) = 
+(add_b_1 m (stack_mult n o)).
+Proof.
+intros.  induction m. auto.
+simpl. f_equal. unfold_open. f_equal. auto.
+Qed.   
+
+Theorem stack_mult_simpl_equiv : forall n m o, add_b_1 m (remove_abs (church_number (n * o))) = (remove_abs (church_number (m + n * o))).
+intros.
+induction m. simpl. auto.
+simpl. f_equal. auto.
+Qed.   
+Theorem stack_step : forall m e e' o, multi (abs_step o) e e' -> multi (abs_step o) (add_b_1 m e) (add_b_1 m e'). 
+Proof. 
+intros. 
+induction m. simpl. auto.
+simpl. apply multi_app. auto. auto. 
+Qed.
+
+Theorem stack_mult_simpl : forall n m , (multi (abs_step 3) (stack_mult n m) (remove_abs (church_number (n * m)))). 
+Proof.
+intros. induction n.
+simpl.
+constructor. 
+simpl. eapply multi_step. apply abs_step_beta. unfold_open. auto. rewrite -> stack_mult_simpl_h. rewrite <- stack_mult_simpl_equiv. 
+eapply stack_step. auto. 
+
+Qed.  
+
+
+Theorem multi_wh : forall (n m: nat), open_exp_wrt_exp_rec_abs 0 4 (church_number m) (remove_abs (church_number n)) = remove_abs (church_number n).
+Proof.
+intros. induction n. auto. 
+simpl. f_equal. auto.
+Qed.
+Theorem multi_open_open : forall (n m : nat), open_exp_wrt_exp_rec_abs 0 2 (church_number m) (church_number n) = church_number n.
+intros. induction n. auto. simpl. f_equal. f_equal. f_equal. apply multi_wh.
+Qed.  
+Theorem multi_lam_correct : forall (n m : nat),  
+(app (app multi_lam (church_number (n))) (church_number m)) --->* church_number ( n* m).
+Proof.
+intros. simpl. 
+ eapply multi_step. 
+eapply abs_step_app. apply abs_step_beta.
+unfold_open.  
+ eapply multi_step. apply abs_step_beta.
+unfold_open. rewrite multi_open_open.    
+ eapply multi_step. eapply abs_step_abs. eapply abs_step_abs.
+eapply abs_step_app. eapply abs_step_app_2. eapply church_step_one.
+ eapply multi_step. eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app.
+ apply stack_mult_equ.
+unfold_open. eapply multi_trans. eapply abs_step_multi. eapply abs_step_multi. eapply multi_app.  
+eapply abs_step_multi. apply stack_mult_simpl. constructor. 
+eapply multi_step.  eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_beta. 
+unfold_open. rewrite -> add_lam_open_0. 
+assert  (C : exists c,  abs (abs c) = church_number (n*m)). eapply church_abs. 
+destruct C. rewrite <- H. simpl.    constructor.
+Qed.  
+
+
+Theorem multi_step_comm : comm_step multi_lam. 
+Proof.
+unfold comm_step. intros. 
+  apply church_valid in H. apply church_valid in H0. destruct H. destruct H0.
+  subst. exists (church_number (x * x0)). split. apply multi_lam_correct.
+  rewrite mult_comm.  apply multi_lam_correct.
+Qed.
+
+Theorem multi_step_assoc : assoc_step multi_lam. 
+Proof.
+unfold assoc_step. intros. 
+  apply church_valid in H. apply church_valid in H0. apply church_valid in H1. 
+destruct H1. destruct H. destruct H0.
+  subst. exists (church_number (x1 * (x * x0))). split. eapply multi_trans. eapply multi_app. eapply multi_app.
+constructor. apply multi_lam_correct. constructor. eapply multi_trans. apply multi_lam_correct.
+rewrite -> mult_assoc. constructor.  
+eapply multi_trans. eapply multi_app. constructor. 
+ apply multi_lam_correct. eapply multi_trans. apply multi_lam_correct.
+rewrite -> mult_assoc. constructor.
+Qed.
+
+
 Theorem multi_lam_correct_S : forall (n m : nat),  
 (app (app multi_lam (church_number (S n))) (church_number m)) --->* church_number (m + n * m).
+
 intros. simpl. 
  eapply multi_step. 
 eapply abs_step_app. apply abs_step_beta.
@@ -649,17 +766,5 @@ eapply abs_step_app. eapply abs_step_app_2. eapply church_step_one.
  eapply multi_step. eapply abs_step_abs. eapply abs_step_abs. eapply abs_step_app.
  apply abs_step_beta.
 unfold_open. 
-
-Theorem multi_lam_open_S_0 : forall (n m : nat), (open_exp_wrt_exp_rec_abs 0 4 (church_number m)
-                       (remove_abs (church_number n))) = (remove_abs (church_number n)). 
-Proof.
-intros. induction n. 
-- simpl. auto. 
-- simpl. f_equal. auto. 
-Qed.
-Theorem multi_lam_helper_step : forall (n : nat), (app (abs (abs (app (var_b 1) (remove_abs (church_number n))))) (abs (var_b 0)))
---->* (app (church_number n) (abs (var_b 0))). 
-Proof.
-intros. induction n.
-- simpl.  eapply multi_step. apply abs_step_beta. unfold_open. constructor.  
+ abs_step_beta. unfold_open. constructor.  
 Qed.
