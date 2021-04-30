@@ -574,8 +574,19 @@ intros. dependent induction H.
   destruct H1. destruct H1. subst. apply abs_exists in H. destruct H. exists x0. destruct H. split. auto.
   eapply multi_trans. apply H2. auto.       
 Qed.
+
+Theorem kms: forall a  e x u, a <> x -> [x ~> u](open e (var_f a)) = (open [x ~>u] e (var_f a)).
+Proof.
+intros.
+  dependent induction e.
+  -  
+Qed. 
+
 Theorem subst_lift : forall a e' e x u, [x ~> u]e -->* e' -> [x ~> u](open e (var_f a)) -->* open e' (var_f a).
 Proof.
+  intros. 
+  dependent induction H. 
+  -  
 Admitted. 
 
 
